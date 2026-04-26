@@ -1,5 +1,5 @@
 ---
-title: StoryToSleep TTS
+title: StoryToSleep-TTS
 emoji: 🎙️
 colorFrom: indigo
 colorTo: purple

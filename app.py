@@ -40,8 +40,8 @@ def generate(text: str, model_label: str) -> tuple[str, str]:
         raise gr.Error(f"Generation failed: {exc}") from exc
 
 
-with gr.Blocks(title="StoryToSleep TTS", theme=gr.themes.Soft()) as demo:
-    gr.Markdown("# 🎙️ StoryToSleep TTS")
+with gr.Blocks(title="StoryToSleep-TTS") as demo:
+    gr.Markdown("# 🎙️ StoryToSleep-TTS")
     gr.Markdown("Paste your text, choose a model, and download the MP3.")
 
     with gr.Row():
@@ -75,4 +75,4 @@ with gr.Blocks(title="StoryToSleep TTS", theme=gr.themes.Soft()) as demo:
     )
 
 if __name__ == "__main__":
-    demo.launch(share=True)
+    demo.launch(share=True, theme=gr.themes.Soft())
