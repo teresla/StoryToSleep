@@ -1,21 +1,19 @@
+import io
 import os
 import tempfile
 
 import gradio as gr
 from huggingface_hub import InferenceClient
 from pydub import AudioSegment
-import io
 
 HF_TOKEN = os.environ.get("HF_TOKEN")
 
-MODELS = {
+INFERENCE_MODELS = {
     "Kokoro-82M ⭐ Recommended": "hexgrad/Kokoro-82M",
     "Spark-TTS-0.5B":           "SparkAudio/Spark-TTS-0.5B",
     "Orpheus-3B":                "canopylabs/orpheus-3b-0.1-ft",
     "Chatterbox":                "ResembleAI/chatterbox",
 }
-
-MODEL_LABELS = list(MODELS.keys())
 
 
 def _audio_bytes_to_mp3(audio_bytes: bytes) -> str:
@@ -25,17 +23,21 @@ def _audio_bytes_to_mp3(audio_bytes: bytes) -> str:
     return tmp.name
 
 
-def generate(text: str, model_label: str) -> tuple[str, str]:
+def generate(text: str, model_label: str):
     if not text.strip():
         raise gr.Error("Please enter some text first.")
-
-    model_id = MODELS[model_label]
-    client = InferenceClient(token=HF_TOKEN)
+    if not HF_TOKEN:
+        raise gr.Error(
+            "HF_TOKEN is not set. Add it as a Space secret (Settings → Secrets) "
+            "or export it locally before running."
+        )
 
     try:
-        audio_bytes = client.text_to_speech(text, model=model_id)
+        yield None, "Calling API..."
+        client = InferenceClient(token=HF_TOKEN)
+        audio_bytes = client.text_to_speech(text, model=INFERENCE_MODELS[model_label])
         mp3_path = _audio_bytes_to_mp3(audio_bytes)
-        return mp3_path, "Done!"
+        yield mp3_path, "Done!"
     except Exception as exc:
         raise gr.Error(f"Generation failed: {exc}") from exc
 
@@ -49,12 +51,12 @@ with gr.Blocks(title="StoryToSleep-TTS") as demo:
             text_input = gr.Textbox(
                 label="Text",
                 placeholder="Enter the text you'd like read aloud...",
-                lines=10,
+                lines=8,
             )
             with gr.Row():
                 model_dropdown = gr.Dropdown(
-                    choices=MODEL_LABELS,
-                    value=MODEL_LABELS[0],
+                    choices=list(INFERENCE_MODELS.keys()),
+                    value=list(INFERENCE_MODELS.keys())[0],
                     label="Model",
                     scale=3,
                 )
@@ -75,4 +77,4 @@ with gr.Blocks(title="StoryToSleep-TTS") as demo:
     )
 
 if __name__ == "__main__":
-    demo.launch(share=True, theme=gr.themes.Soft())
+    demo.launch()
