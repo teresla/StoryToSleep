@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Bedtime Stories — Story TTS</title>
+  <meta name="description" content="Read bedtime stories aloud in your browser. Private, no server." />
+  <style>
+    :root {
+      --bg: #1a1b2e;
+      --surface: #252640;
+      --text: #e8e6f0;
+      --muted: #9b97b8;
+      --accent: #8b9fd4;
+      --accent-soft: #5c6b9a;
+      --warn: #c9a86c;
+      --error: #c97b7b;
+      --ok: #7ba88b;
+      --radius: 12px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100dvh;
+      font-family: Georgia, "Times New Roman", serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+
+    .wrap {
+      max-width: 520px;
+      margin: 0 auto;
+      padding: 1.25rem 1rem 2.5rem;
+    }
+
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin: 0 0 0.25rem;
+      letter-spacing: 0.02em;
+    }
+
+    .subtitle {
+      color: var(--muted);
+      font-size: 0.9rem;
+      margin: 0 0 1.25rem;
+    }
+
+    .status-bar {
+      background: var(--surface);
+      border-radius: var(--radius);
+      padding: 0.75rem 1rem;
+      font-size: 0.9rem;
+      color: var(--muted);
+      min-height: 2.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .status-bar.ready { color: var(--ok); }
+    .status-bar.warn { color: var(--warn); }
+    .status-bar.error { color: var(--error); }
+
+    .spinner {
+      width: 1rem;
+      height: 1rem;
+      border: 2px solid var(--accent-soft);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      flex-shrink: 0;
+      display: none;
+    }
+
+    .status-bar.loading .spinner,
+    .status-bar.generating .spinner { display: block; }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    label {
+      display: block;
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin: 1rem 0 0.35rem;
+    }
+
+    select, textarea, button {
+      font: inherit;
+      width: 100%;
+      border-radius: var(--radius);
+      border: 1px solid #3a3d5c;
+      background: var(--surface);
+      color: var(--text);
+    }
+
+    select, textarea {
+      padding: 0.65rem 0.75rem;
+    }
+
+    select:focus, textarea:focus, button:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    textarea {
+      resize: vertical;
+      min-height: 10rem;
+    }
+
+    textarea:disabled, select:disabled, button:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
+    .char-count {
+      font-size: 0.8rem;
+      color: var(--muted);
+      text-align: right;
+      margin-top: 0.35rem;
+    }
+
+    .char-count.warn { color: var(--warn); }
+    .char-count.limit { color: var(--error); }
+
+    .btn-primary {
+      margin-top: 1.25rem;
+      padding: 0.85rem 1rem;
+      background: var(--accent-soft);
+      border: none;
+      cursor: pointer;
+      font-weight: 600;
+      min-height: 48px;
+    }
+
+    .btn-primary:not(:disabled):hover {
+      background: var(--accent);
+    }
+
+    .audio-out {
+      margin-top: 1.5rem;
+      display: none;
+    }
+
+    .audio-out.visible { display: block; }
+
+    audio {
+      width: 100%;
+      margin-bottom: 0.75rem;
+    }
+
+    .btn-row {
+      display: flex;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    .btn-secondary {
+      flex: 1;
+      min-width: 140px;
+      min-height: 48px;
+      padding: 0.65rem 1rem;
+      background: transparent;
+      border: 1px solid var(--accent-soft);
+      cursor: pointer;
+    }
+
+    .btn-secondary:not(:disabled):hover {
+      background: var(--surface);
+    }
+
+    .notes {
+      margin-top: 1.5rem;
+      padding: 0.75rem 1rem;
+      background: var(--surface);
+      border-radius: var(--radius);
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+
+    .notes strong { color: var(--text); display: block; margin-bottom: 0.35rem; }
+
+    .retry-wrap { margin-top: 0.75rem; display: none; }
+    .retry-wrap.visible { display: block; }
+
+    .btn-retry {
+      padding: 0.65rem 1rem;
+      background: transparent;
+      border: 1px solid var(--error);
+      color: var(--error);
+      cursor: pointer;
+      min-height: 44px;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>🎙 Bedtime Stories</h1>
+    <p class="subtitle">Private text-to-speech — runs entirely in your browser</p>
+
+    <div id="statusBar" class="status-bar loading" role="status" aria-live="polite">
+      <span class="spinner" aria-hidden="true"></span>
+      <span id="statusText">Preparing…</span>
+    </div>
+
+    <div id="retryWrap" class="retry-wrap">
+      <button type="button" id="retryBtn" class="btn-retry">Try again</button>
+    </div>
+
+    <label for="voiceSelect">Voice</label>
+    <select id="voiceSelect" disabled></select>
+
+    <label for="storyText">Your story</label>
+    <textarea
+      id="storyText"
+      placeholder="Paste your story here…"
+      maxlength="3000"
+      disabled
+    ></textarea>
+    <div id="charCount" class="char-count">Characters: 0 / 3000</div>
+
+    <button type="button" id="generateBtn" class="btn-primary" disabled>Generate Audio</button>
+
+    <section id="audioOut" class="audio-out" aria-label="Generated audio">
+      <audio id="player" controls></audio>
+      <div class="btn-row">
+        <button type="button" id="downloadBtn" class="btn-secondary">⬇ Download MP3</button>
+      </div>
+    </section>
+
+    <aside class="notes">
+      <strong>Good to know</strong>
+      First visit downloads about 300&nbsp;MB (cached afterward). Long stories may take several minutes on a laptop CPU.
+      For best results, use a computer — phones may run out of memory.
+    </aside>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js"></script>
+  <script type="module">
+    import { KokoroTTS } from "https://esm.sh/kokoro-js@1.2.1";
+
+    const MAX_CHARS = 3000;
+    const WARN_CHARS = 2500;
+    const MODEL_ID = "onnx-community/Kokoro-82M-v1.0-ONNX";
+    const DEFAULT_VOICE = "af_heart";
+    const SAMPLE_RATE = 24000;
+
+    const State = {
+      INITIAL: "initial",
+      DOWNLOADING: "downloading",
+      READY: "ready",
+      GENERATING: "generating",
+      DONE: "done",
+      ERROR: "error",
+    };
+
+    let appState = State.INITIAL;
+    let tts = null;
+    let lastWavBlob = null;
+    let lastSamples = null;
+    let generationStart = 0;
+
+    const statusBar = document.getElementById("statusBar");
+    const statusText = document.getElementById("statusText");
+    const retryWrap = document.getElementById("retryWrap");
+    const retryBtn = document.getElementById("retryBtn");
+    const voiceSelect = document.getElementById("voiceSelect");
+    const storyText = document.getElementById("storyText");
+    const charCount = document.getElementById("charCount");
+    const generateBtn = document.getElementById("generateBtn");
+    const audioOut = document.getElementById("audioOut");
+    const player = document.getElementById("player");
+    const downloadBtn = document.getElementById("downloadBtn");
+
+    function setState(next, message, options = {}) {
+      appState = next;
+      statusText.textContent = message;
+      statusBar.className = "status-bar";
+      retryWrap.classList.remove("visible");
+
+      if (next === State.DOWNLOADING || next === State.GENERATING) {
+        statusBar.classList.add("loading");
+        if (next === State.GENERATING) statusBar.classList.add("generating");
+      } else if (next === State.READY || next === State.DONE) {
+        statusBar.classList.add("ready");
+      } else if (next === State.ERROR) {
+        statusBar.classList.add("error");
+        retryWrap.classList.add("visible");
+      }
+
+      if (options.warn) statusBar.classList.add("warn");
+
+      const inputsLocked =
+        next === State.DOWNLOADING ||
+        next === State.GENERATING ||
+        next === State.INITIAL;
+
+      voiceSelect.disabled = inputsLocked || !tts;
+      storyText.disabled = inputsLocked || !tts;
+      generateBtn.disabled = inputsLocked || !tts || next === State.GENERATING;
+
+      if (next !== State.DONE) {
+        audioOut.classList.remove("visible");
+      }
+    }
+
+    function updateCharCount() {
+      const len = storyText.value.length;
+      charCount.textContent = `Characters: ${len} / ${MAX_CHARS}`;
+      charCount.classList.toggle("warn", len >= WARN_CHARS && len < MAX_CHARS);
+      charCount.classList.toggle("limit", len >= MAX_CHARS);
+    }
+
+    function splitSentences(text) {
+      const trimmed = text.trim();
+      if (!trimmed) return [];
+      const parts = trimmed.match(/[^.!?…。？！]+[.!?…。？！]+|[^.!?…。？！]+$/gu);
+      return (parts || [trimmed]).map((s) => s.trim()).filter(Boolean);
+    }
+
+    function floatTo16BitPCM(float32) {
+      const out = new Int16Array(float32.length);
+      for (let i = 0; i < float32.length; i++) {
+        const s = Math.max(-1, Math.min(1, float32[i]));
+        out[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+      }
+      return out;
+    }
+
+    function getSamples(raw) {
+      return raw.audio ?? raw.data;
+    }
+
+    function concatAudio(chunks) {
+      const total = chunks.reduce((n, c) => n + getSamples(c).length, 0);
+      const merged = new Float32Array(total);
+      let offset = 0;
+      for (const chunk of chunks) {
+        const samples = getSamples(chunk);
+        merged.set(samples, offset);
+        offset += samples.length;
+      }
+      return merged;
+    }
+
+    function encodeWav(float32Samples) {
+      const pcm = floatTo16BitPCM(float32Samples);
+      const buffer = new ArrayBuffer(44 + pcm.length * 2);
+      const view = new DataView(buffer);
+
+      const writeStr = (offset, str) => {
+        for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+      };
+
+      writeStr(0, "RIFF");
+      view.setUint32(4, 36 + pcm.length * 2, true);
+      writeStr(8, "WAVE");
+      writeStr(12, "fmt ");
+      view.setUint32(16, 16, true);
+      view.setUint16(20, 1, true);
+      view.setUint16(22, 1, true);
+      view.setUint32(24, SAMPLE_RATE, true);
+      view.setUint32(28, SAMPLE_RATE * 2, true);
+      view.setUint16(32, 2, true);
+      view.setUint16(34, 16, true);
+      writeStr(36, "data");
+      view.setUint32(40, pcm.length * 2, true);
+
+      let pos = 44;
+      for (let i = 0; i < pcm.length; i++, pos += 2) {
+        view.setInt16(pos, pcm[i], true);
+      }
+
+      return new Blob([buffer], { type: "audio/wav" });
+    }
+
+    function encodeMp3(float32Samples) {
+      const samples = floatTo16BitPCM(float32Samples);
+      const encoder = new lamejs.Mp3Encoder(1, SAMPLE_RATE, 128);
+      const block = 1152;
+      const parts = [];
+
+      for (let i = 0; i < samples.length; i += block) {
+        const slice = samples.subarray(i, i + block);
+        const buf = encoder.encodeBuffer(slice);
+        if (buf.length) parts.push(buf);
+      }
+
+      const end = encoder.flush();
+      if (end.length) parts.push(end);
+
+      return new Blob(parts, { type: "audio/mpeg" });
+    }
+
+    function populateVoices(voices) {
+      voiceSelect.innerHTML = "";
+      const entries = Object.entries(voices).sort((a, b) => {
+        const va = a[1];
+        const vb = b[1];
+        if (va.gender !== vb.gender) return va.gender === "Female" ? -1 : 1;
+        return va.name.localeCompare(vb.name);
+      });
+
+      for (const [id, meta] of entries) {
+        const opt = document.createElement("option");
+        const region = meta.language === "en-gb" ? "British" : "American";
+        opt.value = id;
+        opt.textContent = `${meta.name} (${region} ${meta.gender})`;
+        voiceSelect.appendChild(opt);
+      }
+
+      if (voices[DEFAULT_VOICE]) {
+        voiceSelect.value = DEFAULT_VOICE;
+      }
+    }
+
+    async function detectDevice() {
+      if (typeof navigator !== "undefined" && navigator.gpu) {
+        try {
+          const adapter = await navigator.gpu.requestAdapter();
+          if (adapter) return "webgpu";
+        } catch {
+          /* fall through */
+        }
+      }
+      return "wasm";
+    }
+
+    async function loadModel() {
+      setState(
+        State.DOWNLOADING,
+        "First visit downloads ~300 MB (cached next time). Starting download…",
+        { warn: true }
+      );
+
+      const device = await detectDevice();
+      const dtype = device === "webgpu" ? "fp32" : "q8";
+
+      try {
+        tts = await KokoroTTS.from_pretrained(MODEL_ID, {
+          dtype,
+          device,
+          progress_callback: (data) => {
+            if (data.status === "progress" && data.total) {
+              const pct = Math.min(99, Math.round((data.loaded / data.total) * 100));
+              setState(State.DOWNLOADING, `Downloading model… ${pct}%`, { warn: true });
+            }
+          },
+        });
+
+        populateVoices(tts.voices);
+        setState(State.READY, "Ready — paste your story and generate audio.");
+      } catch {
+        setState(
+          State.ERROR,
+          "Failed to load model. Check your internet connection and refresh."
+        );
+      }
+    }
+
+    function estimateLabel(done, total) {
+      if (!generationStart || done === 0) {
+        return `Generating… ${done}/${total} sentences`;
+      }
+      const elapsed = (Date.now() - generationStart) / 1000;
+      const perChunk = elapsed / done;
+      const remaining = Math.ceil(perChunk * (total - done));
+      const mins = Math.floor(remaining / 60);
+      const secs = remaining % 60;
+      const eta = mins > 0 ? `~${mins}m ${secs}s left` : `~${secs}s left`;
+      return `Generating… ${done}/${total} sentences (${eta})`;
+    }
+
+    async function generateAudio() {
+      const text = storyText.value.trim();
+      if (!text) return;
+
+      const sentences = splitSentences(text);
+      if (!sentences.length) return;
+
+      setState(State.GENERATING, estimateLabel(0, sentences.length));
+      generationStart = Date.now();
+      audioOut.classList.remove("visible");
+
+      try {
+        const voice = voiceSelect.value;
+        const chunks = [];
+
+        for (let i = 0; i < sentences.length; i++) {
+          setState(State.GENERATING, estimateLabel(i, sentences.length));
+          const audio = await tts.generate(sentences[i], { voice });
+          chunks.push(audio);
+          setState(State.GENERATING, estimateLabel(i + 1, sentences.length));
+        }
+
+        const merged = concatAudio(chunks);
+        lastSamples = merged;
+        lastWavBlob = encodeWav(merged);
+        const url = URL.createObjectURL(lastWavBlob);
+        player.src = url;
+        audioOut.classList.add("visible");
+        setState(State.DONE, "Done — play or download your story.");
+      } catch {
+        setState(State.ERROR, "Something went wrong. Try with shorter text.");
+      }
+    }
+
+    function downloadMp3() {
+      if (!lastSamples) return;
+      const mp3 = encodeMp3(lastSamples);
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(mp3);
+      a.download = `story_${Date.now()}.mp3`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }
+
+    storyText.addEventListener("input", () => {
+      if (storyText.value.length > MAX_CHARS) {
+        storyText.value = storyText.value.slice(0, MAX_CHARS);
+      }
+      updateCharCount();
+    });
+
+    generateBtn.addEventListener("click", generateAudio);
+    downloadBtn.addEventListener("click", downloadMp3);
+
+    retryBtn.addEventListener("click", () => {
+      if (appState === State.ERROR && !tts) {
+        loadModel();
+      } else if (appState === State.ERROR) {
+        setState(State.READY, "Ready — paste your story and generate audio.");
+      }
+    });
+
+    updateCharCount();
+    loadModel();
+  </script>
+</body>
+</html>
