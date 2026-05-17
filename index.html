@@ -220,7 +220,7 @@
       maxlength="3000"
       disabled
     ></textarea>
-    <div id="charCount" class="char-count">Characters: 0 / 3000</div>
+    <div id="charCount" class="char-count">Characters: 0 / 15'000</div>
 
     <button type="button" id="generateBtn" class="btn-primary" disabled>Generate Audio</button>
 
@@ -242,7 +242,7 @@
   <script type="module">
     import { KokoroTTS } from "https://esm.sh/kokoro-js@1.2.1";
 
-    const MAX_CHARS = 3000;
+    const MAX_CHARS = 15000;
     const WARN_CHARS = 2500;
     const MODEL_ID = "onnx-community/Kokoro-82M-v1.0-ONNX";
     const DEFAULT_VOICE = "af_heart";
