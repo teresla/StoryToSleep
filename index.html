@@ -217,7 +217,7 @@
     <textarea
       id="storyText"
       placeholder="Paste your story here…"
-      maxlength="3000"
+      maxlength="15000"
       disabled
     ></textarea>
     <div id="charCount" class="char-count">Characters: 0 / 15'000</div>
@@ -243,7 +243,7 @@
     import { KokoroTTS } from "https://esm.sh/kokoro-js@1.2.1";
 
     const MAX_CHARS = 15000;
-    const WARN_CHARS = 2500;
+    const WARN_CHARS = 14000;
     const MODEL_ID = "onnx-community/Kokoro-82M-v1.0-ONNX";
     const DEFAULT_VOICE = "af_heart";
     const SAMPLE_RATE = 24000;
